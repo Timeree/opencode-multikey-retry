@@ -1,0 +1,26 @@
+{
+  "name": "opencode-multikey-retry",
+  "version": "0.1.0",
+  "description": "Multi API key retry for OpenCode V2 providers",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "^2.2.6"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "^2.2.6",
+    "@types/node": "^26.6.6",
+    "typescript": "^5.9.3"
+  }
+}
