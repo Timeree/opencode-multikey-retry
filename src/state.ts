@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import path from "node:path"
 import { log } from "./shared.ts"
@@ -42,10 +42,24 @@ export function readState(file: string = statePath()): State | undefined {
 }
 
 export function writeState(state: State, file: string = statePath()): void {
+  // 先写同目录临时文件再原子 rename：直接覆盖写若中途崩溃会留下截断的
+  // 非法 JSON，下次 readState 返回 undefined，插件就完全读不到 key 了。
+  let tmp: string | undefined
   try {
     mkdirSync(path.dirname(file), { recursive: true })
-    writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`)
+    tmp = `${file}.${process.pid}.tmp`
+    writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`)
+    renameSync(tmp, file)
+    tmp = undefined
   } catch (error) {
     log(`写入配置文件失败：${String(error)}`)
+  } finally {
+    if (tmp !== undefined) {
+      try {
+        rmSync(tmp, { force: true })
+      } catch {
+        // 临时文件清理失败不影响主流程
+      }
+    }
   }
 }

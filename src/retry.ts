@@ -104,7 +104,9 @@ export class Retry {
     round.lastAt = Date.now()
 
     const status = event.response.status
-    if (status === 200) {
+    // 成功不只有 200：201/202/204/206 等都代表本轮已经结束，必须同样清理
+    // round，否则紧接着的 retry 事件会错误地沿用上一轮的状态。
+    if (status >= 200 && status < 300) {
       this.rounds.delete(id)
       return
     }
@@ -115,7 +117,14 @@ export class Retry {
   }
 
   retry = async (event: SessionRetry): Promise<void> => {
+    // 与 request/response 保持一致：插件没有接管这个 provider、或本轮没有
+    // round 时，绝不改动原生决策。400 分支原先排在这些检查之前，会把
+    // 未注册 provider 的「重试」也强行改成「放弃」。
+    if (!this.providers.has(event.model.providerID)) return
     const id = this.id(event.sessionID, event.model.providerID, event.model.id)
+    const round = this.rounds.get(id)
+    if (round === undefined) return
+
     const status = event.error.status
 
     if (status === 400 || event.error.type === "provider.invalid-request") {
@@ -123,9 +132,6 @@ export class Retry {
       event.decision = { retry: false }
       return
     }
-
-    const round = this.rounds.get(id)
-    if (round === undefined) return
 
     round.lastAt = Date.now()
 
