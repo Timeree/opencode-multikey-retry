@@ -240,7 +240,7 @@ export class Retry {
     const now = Date.now()
     if (key !== undefined) round.cooldown.set(key, now + wait)
 
-    // 退避顺延整池：其它 key 至少再冷却 2s，避免立刻用下一个 key 撞上去
+    // 退避顺延整池：其它 key 至少再冷却 1s，避免立刻用下一个 key 撞上去
     for (const other of this.pool(round)) {
       if (other === key) continue
       round.cooldown.set(other, Math.max(round.cooldown.get(other) ?? now, now) + BUMP_MS)

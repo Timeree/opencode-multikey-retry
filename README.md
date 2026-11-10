@@ -27,7 +27,7 @@ key 池与隔离记录在独立配置文件中，路径为 `$XDG_CONFIG_HOME`（
 
 - `apiKeys`：键名为 provider ID，至少 2 个 key 才接管该 provider；改动重启 OpenCode 后生效
 - `isolated`：插件在 `401` / `403` 时自动写入；删除其中的条目并重启即可人工恢复
-- 失败的 key 进入冷却退避，池中其它 key 冷却顺延 2s，到期换下一个 key 重发
+- 失败的 key 进入冷却退避，池中其它 key 冷却顺延 1s，到期换下一个 key 重发
 
 ## 开发
 

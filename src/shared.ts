@@ -5,7 +5,7 @@ export const ROUND_TTL_MS = 30 * 60_000
 export const MAX_ROUNDS = 512
 
 /** 每次退避时，池中其它 key 冷却顺延的毫秒数。 */
-export const BUMP_MS = 2_000
+export const BUMP_MS = 1_000
 
 const BASE_S = 3
 const FACTOR = 1.5

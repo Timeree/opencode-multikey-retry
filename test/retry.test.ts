@@ -31,7 +31,7 @@ test("一轮的首个请求不经插件改写", async () => {
   assert.strictEqual(authOf(event), "Bearer A")
 })
 
-test("500：接管重试并换下一个可用 key；其它 key 冷却顺延 2s", async (t) => {
+test("500：接管重试并换下一个可用 key；其它 key 冷却顺延 1s", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout", "Date"] })
   const env = await makeEnv(["A", "B", "C"])
   const first = requestEvent({ headers: { authorization: "Bearer A" } })
@@ -40,7 +40,7 @@ test("500：接管重试并换下一个可用 key；其它 key 冷却顺延 2s",
 
   const decision = retryEvent()
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2000 }, "B、C 各顺延 2s")
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 }, "B、C 各顺延 1s")
 
   t.mock.timers.tick(2100)
   const second = requestEvent({ headers: { authorization: "Bearer A" } })
@@ -58,7 +58,7 @@ test("README 示例一：500 → 429(Retry-After) → 500，全部在同一轮",
   await env.retry.response(responseEvent(a, new Response("err", { status: 500 })))
   await env.retry.retry(retryEvent({ error: { status: 500 } }))
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const b = requestEvent({ headers: { authorization: "Bearer A" } })
   await env.retry.request(b)
   assert.strictEqual(authOf(b), "Bearer B")
@@ -67,7 +67,7 @@ test("README 示例一：500 → 429(Retry-After) → 500，全部在同一轮",
   )
   await env.retry.retry(retryEvent({ attempt: 3, error: { status: 429 } }))
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const c = requestEvent({ headers: { authorization: "Bearer A" } })
   await env.retry.request(c)
   assert.strictEqual(authOf(c), "Bearer C")
@@ -215,7 +215,7 @@ test("池内没有可用 key：把等待交给原生调度并列出剩余时间"
     await env.retry.response(responseEvent(event, new Response("err", { status: 500 })))
     await env.retry.retry(retryEvent({ attempt, error: { status: 500 } }))
     attempt += 1
-    t.mock.timers.tick(2100)
+    t.mock.timers.tick(1100)
   }
 
   const c = requestEvent({ headers: { authorization: "Bearer B" } })
@@ -256,7 +256,7 @@ test("隔离的 key 在等待列表中显示 isolated", async (t) => {
   await env.retry.response(responseEvent(a, new Response("err", { status: 500 })))
   await env.retry.retry(retryEvent({ error: { status: 500 } }))
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const b = requestEvent({ headers: { authorization: "Bearer B" } })
   await env.retry.request(b)
   assert.strictEqual(authOf(b), "Bearer B")
@@ -287,7 +287,7 @@ test("跨模型调用冷却不累积：stale pending 后由 attempt 回落重置
   await env.retry.response(responseEvent(a, new Response("err", { status: 500 })))
   await env.retry.retry(retryEvent({ attempt: 2 }))
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const b = requestEvent({ headers: { authorization: "Bearer B" } })
   await env.retry.request(b)
   assert.strictEqual(authOf(b), "Bearer B")
@@ -303,13 +303,13 @@ test("跨模型调用冷却不累积：stale pending 后由 attempt 回落重置
   await env.retry.response(responseEvent(next, new Response("err", { status: 500 })))
   const fresh = retryEvent({ attempt: 2, error: { status: 500 } })
   await env.retry.retry(fresh)
-  assert.deepStrictEqual(fresh.decision, { retry: true, delay: 2000 })
+  assert.deepStrictEqual(fresh.decision, { retry: true, delay: 1000 })
   assert.ok(
-    warns.some((line) => line.includes("#1 3.0s left") && line.includes("#2 2.0s left")),
+    warns.some((line) => line.includes("#1 3.0s left") && line.includes("#2 1.0s left")),
     `新一轮退避应从 3s 重新起算: ${warns.join(" | ")}`,
   )
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const then = requestEvent({ headers: { authorization: "Bearer A" } })
   await env.retry.request(then)
   assert.strictEqual(authOf(then), "Bearer B")
@@ -334,7 +334,7 @@ test("等待被取消后开始的新一轮：首个请求不经插件改写", as
   await env.retry.response(responseEvent(a, new Response("err", { status: 500 })))
   await env.retry.retry(retryEvent({ attempt: 2, error: { status: 500 } }))
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const b = requestEvent({ headers: { authorization: "Bearer B" } })
   await env.retry.request(b)
   assert.strictEqual(authOf(b), "Bearer B")
@@ -349,13 +349,13 @@ test("等待被取消后开始的新一轮：首个请求不经插件改写", as
   await env.retry.request(fresh)
   assert.strictEqual(authOf(fresh), "Bearer A")
 
-  // 且旧冷却已清除：再失败时按新一轮起算，B 只顺延 2s，而不是等旧冷却
+  // 且旧冷却已清除：再失败时按新一轮起算，B 只顺延 1s，而不是等旧冷却
   await env.retry.response(responseEvent(fresh, new Response("err", { status: 500 })))
   const decision = retryEvent({ attempt: 2, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2000 }, "新一轮 2s 后换 B")
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 }, "新一轮 1s 后换 B")
 
-  t.mock.timers.tick(2100)
+  t.mock.timers.tick(1100)
   const retried = requestEvent({ headers: { authorization: "Bearer A" } })
   await env.retry.request(retried)
   assert.strictEqual(authOf(retried), "Bearer B")
@@ -452,7 +452,7 @@ test("Retry-After 按服务端给出的值使用，不套退避上限", async (t
   await env.retry.retry(decision)
   assert.deepStrictEqual(decision.decision, { retry: true, delay: 4500 }, "等待到 B 的 4.5s，不是 A 的 2h")
   assert.ok(
-    warns.some((line) => line.includes("#1 7199.9s left") && line.includes("#2 4.5s left")),
+    warns.some((line) => line.includes("#1 7198.9s left") && line.includes("#2 4.5s left")),
     `上限只作用于回退退避，不截断 Retry-After: ${warns.join(" | ")}`,
   )
 
