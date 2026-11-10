@@ -121,9 +121,14 @@ export class Retry {
     // round 时，绝不改动原生决策。400 分支原先排在这些检查之前，会把
     // 未注册 provider 的「重试」也强行改成「放弃」。
     if (!this.providers.has(event.model.providerID)) return
+    const rid = `${event.model.providerID}/${event.model.id}`
+    log(`retry 触发: ${rid} status=${event.error.status} type=${event.error.type} attempt=${event.attempt}`)
     const id = this.id(event.sessionID, event.model.providerID, event.model.id)
     const round = this.rounds.get(id)
-    if (round === undefined) return
+    if (round === undefined) {
+      log(`retry 触发: ${rid} → 无本轮状态，交还原生`)
+      return
+    }
 
     const status = event.error.status
 
@@ -146,6 +151,7 @@ export class Retry {
 
     // 未收到响应、且不是传输类失败（取消、凭据解析等）：不判定、不计数
     if (status === undefined && !TRANSPORT.has(event.error.type)) {
+      log(`retry 判定: ${rid} → 无响应且非传输类，交还原生`)
       this.handback(round)
       return
     }
@@ -154,11 +160,13 @@ export class Retry {
 
     // 状态处理表以外的失败：不设冷却，交还原生
     if (status !== undefined && !handled(status)) {
+      log(`retry 判定: ${rid} → 未处理状态，交还原生`)
       this.handback(round)
       return
     }
 
     if (await this.apply(round, status, key, retryAfter)) {
+      log(`retry 判定: ${rid} → 可用 key 不足，交还原生`)
       this.handback(round)
       return
     }
@@ -171,6 +179,7 @@ export class Retry {
     round.waitUntil = Date.now() + delay
     round.pending = true
     event.decision = { retry: true, delay }
+    log(`retry 判定: ${rid} → 接管重试，delay=${delay}ms (第 ${round.n} 次失败)`)
 
     if (delay > 0) this.reportWait(round, mode, delay)
   }
