@@ -7,6 +7,9 @@ export const MAX_ROUNDS = 512
 /** 每次退避时，池中其它 key 冷却顺延的毫秒数。 */
 export const BUMP_MS = 1_000
 
+/** 端点级 TPM/RPM 429：没有 Retry-After 时，等待一个分钟窗口再重试。 */
+export const RATE_LIMIT_WINDOW_MS = 65_000
+
 const BASE_S = 1
 const FACTOR = 1.2
 const CAP_S = 1200
