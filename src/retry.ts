@@ -7,11 +7,14 @@ import { captureShapes, currentKey, readKey, writeKey } from "./auth.ts"
 import type { Isolation } from "./isolation.ts"
 import {
   BUMP_MS,
+  FAKE_SUCCESS_AFTER,
   MAX_ROUNDS,
+  MIN_FAKE_INTERVAL_MS,
   POLL_MS,
   ROUND_TTL_MS,
   TRANSPORT,
   delayMs,
+  fakeSuccessResponse,
   handled,
   log,
   retryAfterMs,
@@ -43,6 +46,8 @@ export class Retry {
   private readonly rounds = new Map<string, Round>()
   private readonly providers: Map<string, string[]>
   private readonly isolation: Isolation
+  /** 上次伪造成功的时间，避免死配额下每秒刷一个空成功。 */
+  private lastFakeAt = 0
 
   constructor(providers: Map<string, string[]>, isolation: Isolation) {
     this.providers = providers
@@ -99,6 +104,23 @@ export class Retry {
 
     const id = this.id(event.sessionID, event.model.providerID, event.model.id)
     const round = this.rounds.get(id)
+
+    // 连续第 N 次 429：用一个“空的成功”SSE 响应替换掉它，runner 会走
+    // 成功路径（空白 assistant 消息，finish_reason=stop），不会触发重试计数，
+    // 也不会触发 12 次的原生放弃。外层 goal/循环会继续发起下一轮。
+    if (
+      event.response.status === 429 &&
+      round !== undefined &&
+      round.n + 1 >= FAKE_SUCCESS_AFTER &&
+      Date.now() - this.lastFakeAt >= MIN_FAKE_INTERVAL_MS
+    ) {
+      this.lastFakeAt = Date.now()
+      this.rounds.delete(id)
+      log(`${event.model.providerID} 第 ${round.n + 1} 次 429，伪造空成功响应，跳过重试上限`)
+      event.response = fakeSuccessResponse(event.model.id)
+      return
+    }
+
     if (round === undefined) return
 
     round.lastAt = Date.now()
