@@ -7,7 +7,6 @@ import { captureShapes, currentKey, readKey, writeKey } from "./auth.ts"
 import type { Isolation } from "./isolation.ts"
 import {
   BUMP_MS,
-  rateLimitMs,
   MAX_ROUNDS,
   POLL_MS,
   ROUND_TTL_MS,
@@ -246,9 +245,8 @@ export class Retry {
 
     if (pre < 2) return true
 
-    // 429 且没有 Retry-After：1s 起按 2 倍退避，上限 1200s——前面几次快试，
-    // 后面每次翻倍，约 10 次内可覆盖分钟级 TPM/RPM 配额窗口
-    const wait = status === 429 ? retryAfter ?? rateLimitMs(round.n) : delayMs(round.n)
+    // 429 且没有 Retry-After：与其它可处理的失败一样按 delayMs 指数退避
+    const wait = status === 429 ? retryAfter ?? delayMs(round.n) : delayMs(round.n)
     const now = Date.now()
     if (key !== undefined) round.cooldown.set(key, now + wait)
 
