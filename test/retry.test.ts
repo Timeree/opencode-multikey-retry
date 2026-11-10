@@ -231,8 +231,8 @@ test("池内没有可用 key：把等待交给原生调度并列出剩余时间"
       line.includes(
         "[opencode-multikey-retry] p has no usable key; next attempt in 1.0s\n" +
           "  #1 1.0s left\n" +
-          "  #2 1.4s left\n" +
-          "  #3 2.3s left",
+          "  #2 1.1s left\n" +
+          "  #3 1.4s left",
       ),
     ),
     `等待列表格式不符: ${warns.join(" | ")}`,
@@ -449,9 +449,9 @@ test("Retry-After 按服务端给出的值使用，不套退避上限", async (t
   await env.retry.response(responseEvent(b, new Response("err", { status: 500 })))
   const decision = retryEvent({ attempt: 3, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1500 }, "等待到 B 的 1.5s，不是 A 的 2h")
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1200 }, "等待到 B 的 1.2s，不是 A 的 2h")
   assert.ok(
-    warns.some((line) => line.includes("#1 7198.9s left") && line.includes("#2 1.5s left")),
+    warns.some((line) => line.includes("#1 7198.9s left") && line.includes("#2 1.2s left")),
     `上限只作用于回退退避，不截断 Retry-After: ${warns.join(" | ")}`,
   )
 

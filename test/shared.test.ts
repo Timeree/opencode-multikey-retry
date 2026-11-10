@@ -2,16 +2,17 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { delayMs, retryAfterMs } from "../src/shared.ts"
 
-test("delayMs：1 × 1.5^(n-1)，上限 1200s", () => {
+test("delayMs：1 × 1.2^(n-1)，上限 1200s", () => {
   assert.strictEqual(delayMs(1), 1000)
-  assert.strictEqual(delayMs(2), 1500)
-  assert.strictEqual(delayMs(3), 2250)
-  assert.strictEqual(delayMs(4), 3375)
-  assert.strictEqual(delayMs(10), 38443)
-  assert.strictEqual(delayMs(15), 291929)
-  assert.strictEqual(delayMs(16), 437894)
-  assert.strictEqual(delayMs(19), 1200000)
-  assert.strictEqual(delayMs(30), 1200000)
+  assert.strictEqual(delayMs(2), 1200)
+  assert.strictEqual(delayMs(3), 1440)
+  assert.strictEqual(delayMs(4), 1728)
+  assert.strictEqual(delayMs(10), 5160)
+  assert.strictEqual(delayMs(15), 12839)
+  assert.strictEqual(delayMs(20), 31948)
+  assert.strictEqual(delayMs(38), 850562)
+  assert.strictEqual(delayMs(40), 1200000)
+  assert.strictEqual(delayMs(50), 1200000)
 })
 
 test("retryAfterMs：秒数与 HTTP 日期都换算为时长", () => {

@@ -8,7 +8,7 @@ export const MAX_ROUNDS = 512
 export const BUMP_MS = 1_000
 
 const BASE_S = 1
-const FACTOR = 1.5
+const FACTOR = 1.2
 const CAP_S = 1200
 
 export const AUTH_HEADERS = [
