@@ -7,34 +7,6 @@ export const MAX_ROUNDS = 512
 /** 每次退避时，池中其它 key 冷却顺延的毫秒数。 */
 export const BUMP_MS = 1_000
 
-/** 连续第几次 429 后，伪造一个“空成功”响应，避免走到 12 次的原生重试上限。 */
-export const FAKE_SUCCESS_AFTER = 10
-
-/** 两次伪造成功之间的最小间隔，防止死配额下请求洪流。 */
-export const MIN_FAKE_INTERVAL_MS = 10_000
-
-/** 一个合法但空的 SSE 流：与 OpenAI 兼容，模型产出 0 个字符、finish_reason=stop。 */
-export function fakeSuccessResponse(model: string): Response {
-  const chunk = (delta: object, finish: string | null): string =>
-    `data: ${JSON.stringify({
-      id: "chatcmpl-fake",
-      object: "chat.completion.chunk",
-      created: 0,
-      model,
-      choices: [{ index: 0, delta, finish_reason: finish }],
-    })}\n\n`
-
-  const body =
-    chunk({ role: "assistant", content: "" }, null) +
-    chunk({}, "stop") +
-    "data: [DONE]\n\n"
-
-  return new Response(body, {
-    status: 200,
-    headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
-  })
-}
-
 const BASE_S = 1
 const FACTOR = 1.2
 const CAP_S = 1200
