@@ -2,14 +2,15 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { delayMs, retryAfterMs } from "../src/shared.ts"
 
-test("delayMs：3 × 1.5^(n-1)，上限 1200s", () => {
-  assert.strictEqual(delayMs(1), 3000)
-  assert.strictEqual(delayMs(2), 4500)
-  assert.strictEqual(delayMs(3), 6750)
-  assert.strictEqual(delayMs(4), 10125)
-  assert.strictEqual(delayMs(10), 115330)
-  assert.strictEqual(delayMs(15), 875788)
-  assert.strictEqual(delayMs(16), 1200000)
+test("delayMs：1 × 1.5^(n-1)，上限 1200s", () => {
+  assert.strictEqual(delayMs(1), 1000)
+  assert.strictEqual(delayMs(2), 1500)
+  assert.strictEqual(delayMs(3), 2250)
+  assert.strictEqual(delayMs(4), 3375)
+  assert.strictEqual(delayMs(10), 38443)
+  assert.strictEqual(delayMs(15), 291929)
+  assert.strictEqual(delayMs(16), 437894)
+  assert.strictEqual(delayMs(19), 1200000)
   assert.strictEqual(delayMs(30), 1200000)
 })
 

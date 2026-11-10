@@ -76,9 +76,9 @@ test("README 示例一：500 → 429(Retry-After) → 500，全部在同一轮",
   // 池内全部在冷却：#2 的倒计时来自 Retry-After（7s）加顺延，#1 被顺延两次后最早到期
   const decision = retryEvent({ attempt: 4, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2800 }, "A 最早到期")
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 }, "A 最早到期")
   assert.ok(
-    warns.some((line) => line.includes("next attempt in 2.8s") && line.includes("#2 6.9s left")),
+    warns.some((line) => line.includes("next attempt in 1.0s") && line.includes("#2 6.9s left")),
     `Retry-After 应反映在倒计时里: ${warns.join(" | ")}`,
   )
 
@@ -179,14 +179,14 @@ test("网络错误：退避记在失败 key 上，等它到期再用它重发", 
   await env.retry.request(a)
   const decision = retryEvent({ error: { type: "provider.transport", status: undefined } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 3000 })
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 })
   assert.ok(
-    warns.some((line) => line.includes("transport error; retrying the same key in 3.0s")),
+    warns.some((line) => line.includes("transport error; retrying the same key in 1.0s")),
     `决策时应输出一次倒计时: ${warns.join(" | ")}`,
   )
 
   // 兜底：原生提前发来请求时，插件在请求侧等到到期才放行
-  await drain(t, 2700)
+  await drain(t, 700)
   const early = requestEvent({ headers: { authorization: "Bearer A" } })
   let done = false
   const pending = env.retry.request(early).then(() => {
@@ -225,15 +225,14 @@ test("池内没有可用 key：把等待交给原生调度并列出剩余时间"
 
   const decision = retryEvent({ attempt, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2800 })
-
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 })
   assert.ok(
     warns.some((line) =>
       line.includes(
-        "[opencode-multikey-retry] p has no usable key; next attempt in 2.8s\n" +
-          "  #1 2.8s left\n" +
-          "  #2 4.4s left\n" +
-          "  #3 6.8s left",
+        "[opencode-multikey-retry] p has no usable key; next attempt in 1.0s\n" +
+          "  #1 1.0s left\n" +
+          "  #2 1.4s left\n" +
+          "  #3 2.3s left",
       ),
     ),
     `等待列表格式不符: ${warns.join(" | ")}`,
@@ -264,7 +263,7 @@ test("隔离的 key 在等待列表中显示 isolated", async (t) => {
 
   const decision = retryEvent({ attempt: 3, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2900 })
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 })
   assert.ok(
     warns.some((line) => line.includes("#3 isolated")),
     `隔离 key 应显示 isolated: ${warns.join(" | ")}`,
@@ -297,7 +296,7 @@ test("跨模型调用冷却不累积：stale pending 后由 attempt 回落重置
   await env.retry.retry(handback)
   assert.deepStrictEqual(handback.decision, { retry: true, delay: 4000 })
 
-  // 新一轮：首个请求仍带 A，失败后 backoff 必须从 3s 重新起算
+  // 新一轮：首个请求仍带 A，失败后 backoff 必须从 1s 重新起算
   const next = requestEvent({ headers: { authorization: "Bearer A" } })
   await env.retry.request(next)
   await env.retry.response(responseEvent(next, new Response("err", { status: 500 })))
@@ -305,8 +304,8 @@ test("跨模型调用冷却不累积：stale pending 后由 attempt 回落重置
   await env.retry.retry(fresh)
   assert.deepStrictEqual(fresh.decision, { retry: true, delay: 1000 })
   assert.ok(
-    warns.some((line) => line.includes("#1 3.0s left") && line.includes("#2 1.0s left")),
-    `新一轮退避应从 3s 重新起算: ${warns.join(" | ")}`,
+    warns.some((line) => line.includes("#1 1.0s left") && line.includes("#2 1.0s left")),
+    `新一轮退避应从 1s 重新起算: ${warns.join(" | ")}`,
   )
 
   t.mock.timers.tick(1100)
@@ -316,7 +315,7 @@ test("跨模型调用冷却不累积：stale pending 后由 attempt 回落重置
   await env.retry.response(responseEvent(then, new Response("err", { status: 500 })))
   const decision = retryEvent({ attempt: 3, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 2900 })
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1000 })
 
   await drain(t, 3000)
   const retried = requestEvent({ headers: { authorization: "Bearer B" } })
@@ -341,7 +340,7 @@ test("等待被取消后开始的新一轮：首个请求不经插件改写", as
   await env.retry.response(responseEvent(b, new Response("err", { status: 500 })))
   const wait = retryEvent({ attempt: 3, error: { status: 500 } })
   await env.retry.retry(wait)
-  assert.deepStrictEqual(wait.decision, { retry: true, delay: 2900 })
+  assert.deepStrictEqual(wait.decision, { retry: true, delay: 1000 })
 
   // 原生等待被取消（100ms 时）：此后新一轮的首个请求应原样放行
   t.mock.timers.tick(100)
@@ -450,9 +449,9 @@ test("Retry-After 按服务端给出的值使用，不套退避上限", async (t
   await env.retry.response(responseEvent(b, new Response("err", { status: 500 })))
   const decision = retryEvent({ attempt: 3, error: { status: 500 } })
   await env.retry.retry(decision)
-  assert.deepStrictEqual(decision.decision, { retry: true, delay: 4500 }, "等待到 B 的 4.5s，不是 A 的 2h")
+  assert.deepStrictEqual(decision.decision, { retry: true, delay: 1500 }, "等待到 B 的 1.5s，不是 A 的 2h")
   assert.ok(
-    warns.some((line) => line.includes("#1 7198.9s left") && line.includes("#2 4.5s left")),
+    warns.some((line) => line.includes("#1 7198.9s left") && line.includes("#2 1.5s left")),
     `上限只作用于回退退避，不截断 Retry-After: ${warns.join(" | ")}`,
   )
 
