@@ -50,9 +50,9 @@ export function fakeToolCallResponse(model: string): Response {
         tool_calls: [
           {
             index: 0,
-            id: "call_fake_noop",
+            id: "call_f",
             type: "function",
-            function: { name: "shell", arguments: "{\"command\":\"true\"}" },
+            function: { name: "shell", arguments: "{\"command\":\":\"}" },
           },
         ],
       },
