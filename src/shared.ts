@@ -24,6 +24,49 @@ export const SCHEME = /^[A-Za-z][A-Za-z0-9_-]*\s+/
 
 export const TRANSPORT = new Set(["provider.transport", "provider.timeout"])
 
+/** 连续第几次 429 后，伪造一个“空指令” tool call，避免走到 12 次的原生重试上限。 */
+export const FAKE_TOOL_CALL_AFTER = 10
+
+/** 两次伪造空指令之间的最小间隔，防止死配额下请求洪流。 */
+export const MIN_FAKE_INTERVAL_MS = 10_000
+
+/** 一段合法的空 tool_call SSE 流：runner 走 tool_calls 路径，执行一条空指令后续跑下一轮。 */
+export function fakeToolCallResponse(model: string): Response {
+  const chunk = (delta: object, finish: string | null, usage?: object): string =>
+    `data: ${JSON.stringify({
+      id: "chatcmpl-fake",
+      object: "chat.completion.chunk",
+      created: 0,
+      model,
+      choices: [{ index: 0, delta, finish_reason: finish }],
+      ...(usage ? { usage } : {}),
+    })}\n\n`
+
+  const body =
+    chunk(
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            index: 0,
+            id: "call_fake_noop",
+            type: "function",
+            function: { name: "shell", arguments: "{\"command\":\"true\"}" },
+          },
+        ],
+      },
+      null,
+    ) +
+    chunk({}, "tool_calls", { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }) +
+    "data: [DONE]\n\n"
+
+  return new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
+  })
+}
+
 export interface Shape {
   readonly name: string
   readonly prefix: string

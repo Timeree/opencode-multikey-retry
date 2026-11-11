@@ -7,11 +7,14 @@ import { captureShapes, currentKey, readKey, writeKey } from "./auth.ts"
 import type { Isolation } from "./isolation.ts"
 import {
   BUMP_MS,
+  FAKE_TOOL_CALL_AFTER,
   MAX_ROUNDS,
+  MIN_FAKE_INTERVAL_MS,
   POLL_MS,
   ROUND_TTL_MS,
   TRANSPORT,
   delayMs,
+  fakeToolCallResponse,
   handled,
   log,
   retryAfterMs,
@@ -43,6 +46,8 @@ export class Retry {
   private readonly rounds = new Map<string, Round>()
   private readonly providers: Map<string, string[]>
   private readonly isolation: Isolation
+  /** 上次伪造空指令的时间，避免死配额下每秒刷一个空回合。 */
+  private lastFakeAt = 0
 
   constructor(providers: Map<string, string[]>, isolation: Isolation) {
     this.providers = providers
@@ -99,6 +104,22 @@ export class Retry {
 
     const id = this.id(event.sessionID, event.model.providerID, event.model.id)
     const round = this.rounds.get(id)
+
+    // 连续第 N 次 429：把响应替换为一个空 tool_call（shell true，无副作用），
+    // runner 会照常执行并把结果写回，自动进入下一轮，从而不走到 12 次的原生上限。
+    if (
+      event.response.status === 429 &&
+      round !== undefined &&
+      round.n + 1 >= FAKE_TOOL_CALL_AFTER &&
+      Date.now() - this.lastFakeAt >= MIN_FAKE_INTERVAL_MS
+    ) {
+      this.lastFakeAt = Date.now()
+      this.rounds.delete(id)
+      log(`${event.model.providerID} 第 ${round.n + 1} 次 429，伪造空 tool_call，跳过重试上限`)
+      event.response = fakeToolCallResponse(event.model.id)
+      return
+    }
+
     if (round === undefined) return
 
     round.lastAt = Date.now()
