@@ -52,7 +52,7 @@ export function fakeToolCallResponse(model: string): Response {
             index: 0,
             id: "call_f",
             type: "function",
-            function: { name: "shell", arguments: "{\"command\":\":\"}" },
+            function: { name: "shell", arguments: "{\"command\":\"\"}" },
           },
         ],
       },

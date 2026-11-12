@@ -105,8 +105,10 @@ export class Retry {
     const id = this.id(event.sessionID, event.model.providerID, event.model.id)
     const round = this.rounds.get(id)
 
-    // 连续第 N 次 429：把响应替换为一个空 tool_call（shell true，无副作用），
+    // 连续第 N 次 429：把响应替换为一个空 tool_call（shell 空字符串，无副作用），
     // runner 会照常执行并把结果写回，自动进入下一轮，从而不走到 12 次的原生上限。
+    // 注意：不删除 round，并标记 pending——下一轮的请求要继承重试次数与冷却记录，
+    // 而不是每轮重新起算 10 次。真实 2xx 才会清理 round。
     if (
       event.response.status === 429 &&
       round !== undefined &&
@@ -114,7 +116,8 @@ export class Retry {
       Date.now() - this.lastFakeAt >= MIN_FAKE_INTERVAL_MS
     ) {
       this.lastFakeAt = Date.now()
-      this.rounds.delete(id)
+      round.pending = true
+      round.lastAt = Date.now()
       log(`${event.model.providerID} 第 ${round.n + 1} 次 429，伪造空 tool_call，跳过重试上限`)
       event.response = fakeToolCallResponse(event.model.id)
       return
