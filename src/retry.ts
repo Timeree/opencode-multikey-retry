@@ -185,6 +185,9 @@ export class Retry {
     }
 
     round.n += 1
+    // 伪造续跑模式把 n 钉在阈值：既保证后续每轮 429 立刻触发伪造，
+    // 又避免 delayMs(n) 一路涨到 1200s 上限，造成几分钟到几十分钟的假死。
+    if (round.fake && round.n > FAKE_TOOL_CALL_AFTER) round.n = FAKE_TOOL_CALL_AFTER
 
     // 状态处理表以外的失败：不设冷却，交还原生
     if (status !== undefined && !handled(status)) {
