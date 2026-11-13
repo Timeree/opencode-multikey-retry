@@ -35,6 +35,8 @@ interface Round {
   mode?: Mode
   /** 当前请求已交给原生重试，尚未收到响应。 */
   pending: boolean
+  /** 已进入伪造续跑模式：不再因 attempt 回落重置，直到真实 2xx 或超时。 */
+  fake?: boolean
   retryAfter?: number
   waitUntil?: number
   lastAt: number
@@ -66,7 +68,7 @@ export class Retry {
       round = this.create(event.model.providerID)
       this.rounds.set(id, round)
       this.trim(now)
-    } else if (!round.pending) {
+    } else if (!round.pending && round.fake !== true) {
       this.reset(round)
     }
 
@@ -75,7 +77,7 @@ export class Retry {
 
     // 早于排定时刻到来的请求：上一次等待已被取消，这是新一轮模型调用
     const stale = mode !== undefined && now < (round.waitUntil ?? 0) - POLL_MS
-    if (stale) this.reset(round)
+    if (stale && round.fake !== true) this.reset(round)
 
     round.mode = undefined
     round.waitUntil = undefined
@@ -117,6 +119,7 @@ export class Retry {
     ) {
       this.lastFakeAt = Date.now()
       round.pending = true
+      round.fake = true
       round.lastAt = Date.now()
       log(`${event.model.providerID} 第 ${round.n + 1} 次 429，伪造空 tool_call，跳过重试上限`)
       event.response = fakeToolCallResponse(event.model.id)
@@ -164,8 +167,9 @@ export class Retry {
 
     round.lastAt = Date.now()
 
-    // attempt 回落说明上一轮已结束（原生放弃、被取消等）：丢弃旧退避，从本轮重新起算
-    if (event.attempt <= round.attempt) this.reset(round)
+    // attempt 回落说明上一轮已结束（原生放弃、被取消等）：丢弃旧退避，从本轮重新起算。
+    // 伪造续跑模式例外：必须把 n 和冷却记录继承到后续轮次。
+    if (event.attempt <= round.attempt && round.fake !== true) this.reset(round)
     round.attempt = event.attempt
 
     const retryAfter = round.retryAfter ?? event.error.retryAfterMs
